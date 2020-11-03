@@ -52,3 +52,7 @@ build
 **/*.vcxproj*
 **/*.sln*
 .vs
+aacgain.xcodeproj/project.xcworkspace/xcuserdata
+aacgain.xcodeproj/xcuserdata
+mp3gain/mpglibDBL/mpglib.xcodeproj/xcuserdata
+mp3gain/mpglibDBL/mpglib.xcodeproj/project.xcworkspace/xcuserdata
