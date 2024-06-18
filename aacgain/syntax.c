@@ -111,630 +111,597 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
                          bitfile *ld, ic_stream *ics, uint8_t scal_flag);
 #ifdef DRM
 static int8_t DRM_aac_scalable_main_header(NeAACDecStruct *hDecoder, ic_stream *ics1, ic_stream *ics2,
-                                           bitfile *ld, uint8_t this_layer_stereo);
+                                       bitfile *ld, uint8_t this_layer_stereo);
 #endif
 
 #ifdef NOT_USED_IN_AACGAIN
 /* Table 4.4.1 */
 int8_t GASpecificConfig(bitfile *ld, mp4AudioSpecificConfig *mp4ASC,
-                        program_config *pce_out)
+program_config *pce_out)
 {
-    program_config pce;
+program_config pce;
 
-    /* 1024 or 960 */
-    mp4ASC->frameLengthFlag = faad_get1bit(ld
-        DEBUGVAR(1,138,"GASpecificConfig(): FrameLengthFlag"));
+/* 1024 or 960 */
+mp4ASC->frameLengthFlag = faad_get1bit(ld
+DEBUGVAR(1,138,"GASpecificConfig(): FrameLengthFlag"));
 #ifndef ALLOW_SMALL_FRAMELENGTH
-    if (mp4ASC->frameLengthFlag == 1)
-        return -3;
+if (mp4ASC->frameLengthFlag == 1)
+return -3;
 #endif
 
-    mp4ASC->dependsOnCoreCoder = faad_get1bit(ld
-        DEBUGVAR(1,139,"GASpecificConfig(): DependsOnCoreCoder"));
-    if (mp4ASC->dependsOnCoreCoder == 1)
-    {
-        mp4ASC->coreCoderDelay = (uint16_t)faad_getbits(ld, 14
-            DEBUGVAR(1,140,"GASpecificConfig(): CoreCoderDelay"));
-    }
+mp4ASC->dependsOnCoreCoder = faad_get1bit(ld
+DEBUGVAR(1,139,"GASpecificConfig(): DependsOnCoreCoder"));
+if (mp4ASC->dependsOnCoreCoder == 1)
+{
+mp4ASC->coreCoderDelay = (uint16_t)faad_getbits(ld, 14
+DEBUGVAR(1,140,"GASpecificConfig(): CoreCoderDelay"));
+}
 
-    mp4ASC->extensionFlag = faad_get1bit(ld DEBUGVAR(1,141,"GASpecificConfig(): ExtensionFlag"));
-    if (mp4ASC->channelsConfiguration == 0)
-    {
-        if (program_config_element(&pce, ld))
-            return -3;
-        //mp4ASC->channelsConfiguration = pce.channels;
+mp4ASC->extensionFlag = faad_get1bit(ld DEBUGVAR(1,141,"GASpecificConfig(): ExtensionFlag"));
+if (mp4ASC->channelsConfiguration == 0)
+{
+if (program_config_element(&pce, ld))
+return -3;
+//mp4ASC->channelsConfiguration = pce.channels;
 
-        if (pce_out != NULL)
-            memcpy(pce_out, &pce, sizeof(program_config));
+if (pce_out != NULL)
+memcpy(pce_out, &pce, sizeof(program_config));
 
-        /*
-        if (pce.num_valid_cc_elements)
-            return -3;
-        */
-    }
+/*
+if (pce.num_valid_cc_elements)
+return -3;
+*/
+}
 
 #ifdef ERROR_RESILIENCE
-    if (mp4ASC->extensionFlag == 1)
-    {
-        /* Error resilience not supported yet */
-        if (mp4ASC->objectTypeIndex >= ER_OBJECT_START)
-        {
-            mp4ASC->aacSectionDataResilienceFlag = faad_get1bit(ld
-                DEBUGVAR(1,144,"GASpecificConfig(): aacSectionDataResilienceFlag"));
-            mp4ASC->aacScalefactorDataResilienceFlag = faad_get1bit(ld
-                DEBUGVAR(1,145,"GASpecificConfig(): aacScalefactorDataResilienceFlag"));
-            mp4ASC->aacSpectralDataResilienceFlag = faad_get1bit(ld
-                DEBUGVAR(1,146,"GASpecificConfig(): aacSpectralDataResilienceFlag"));
-        }
-        /* 1 bit: extensionFlag3 */
-        faad_getbits(ld, 1);
-	}
+if (mp4ASC->extensionFlag == 1)
+{
+/* Error resilience not supported yet */
+if (mp4ASC->objectTypeIndex >= ER_OBJECT_START)
+{
+mp4ASC->aacSectionDataResilienceFlag = faad_get1bit(ld
+DEBUGVAR(1,144,"GASpecificConfig(): aacSectionDataResilienceFlag"));
+mp4ASC->aacScalefactorDataResilienceFlag = faad_get1bit(ld
+DEBUGVAR(1,145,"GASpecificConfig(): aacScalefactorDataResilienceFlag"));
+mp4ASC->aacSpectralDataResilienceFlag = faad_get1bit(ld
+DEBUGVAR(1,146,"GASpecificConfig(): aacSpectralDataResilienceFlag"));
+}
+/* 1 bit: extensionFlag3 */
+faad_getbits(ld, 1);
+}
 #endif
 
-    return 0;
+return 0;
 }
 #endif
 
 /* Table 4.4.2 */
 /* An MPEG-4 Audio decoder is only required to follow the Program
-   Configuration Element in GASpecificConfig(). The decoder shall ignore
-   any Program Configuration Elements that may occur in raw data blocks.
-   PCEs transmitted in raw data blocks cannot be used to convey decoder
-   configuration information.
+Configuration Element in GASpecificConfig(). The decoder shall ignore
+any Program Configuration Elements that may occur in raw data blocks.
+PCEs transmitted in raw data blocks cannot be used to convey decoder
+configuration information.
 */
 static uint8_t program_config_element(program_config *pce, bitfile *ld)
 {
-    uint8_t i;
+uint8_t i;
 
-    memset(pce, 0, sizeof(program_config));
+memset(pce, 0, sizeof(program_config));
 
-    pce->channels = 0;
+pce->channels = 0;
 
-    pce->element_instance_tag = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,10,"program_config_element(): element_instance_tag"));
+pce->element_instance_tag = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,10,"program_config_element(): element_instance_tag"));
 
-    pce->object_type = (uint8_t)faad_getbits(ld, 2
-        DEBUGVAR(1,11,"program_config_element(): object_type"));
-    pce->sf_index = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,12,"program_config_element(): sf_index"));
-    pce->num_front_channel_elements = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,13,"program_config_element(): num_front_channel_elements"));
-    pce->num_side_channel_elements = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,14,"program_config_element(): num_side_channel_elements"));
-    pce->num_back_channel_elements = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,15,"program_config_element(): num_back_channel_elements"));
-    pce->num_lfe_channel_elements = (uint8_t)faad_getbits(ld, 2
-        DEBUGVAR(1,16,"program_config_element(): num_lfe_channel_elements"));
-    pce->num_assoc_data_elements = (uint8_t)faad_getbits(ld, 3
-        DEBUGVAR(1,17,"program_config_element(): num_assoc_data_elements"));
-    pce->num_valid_cc_elements = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,18,"program_config_element(): num_valid_cc_elements"));
+pce->object_type = (uint8_t)faad_getbits(ld, 2
+    DEBUGVAR(1,11,"program_config_element(): object_type"));
+pce->sf_index = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,12,"program_config_element(): sf_index"));
+pce->num_front_channel_elements = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,13,"program_config_element(): num_front_channel_elements"));
+pce->num_side_channel_elements = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,14,"program_config_element(): num_side_channel_elements"));
+pce->num_back_channel_elements = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,15,"program_config_element(): num_back_channel_elements"));
+pce->num_lfe_channel_elements = (uint8_t)faad_getbits(ld, 2
+    DEBUGVAR(1,16,"program_config_element(): num_lfe_channel_elements"));
+pce->num_assoc_data_elements = (uint8_t)faad_getbits(ld, 3
+    DEBUGVAR(1,17,"program_config_element(): num_assoc_data_elements"));
+pce->num_valid_cc_elements = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,18,"program_config_element(): num_valid_cc_elements"));
 
-    pce->mono_mixdown_present = faad_get1bit(ld
-        DEBUGVAR(1,19,"program_config_element(): mono_mixdown_present"));
-    if (pce->mono_mixdown_present == 1)
+pce->mono_mixdown_present = faad_get1bit(ld
+    DEBUGVAR(1,19,"program_config_element(): mono_mixdown_present"));
+if (pce->mono_mixdown_present == 1)
+{
+    pce->mono_mixdown_element_number = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,20,"program_config_element(): mono_mixdown_element_number"));
+}
+
+pce->stereo_mixdown_present = faad_get1bit(ld
+    DEBUGVAR(1,21,"program_config_element(): stereo_mixdown_present"));
+if (pce->stereo_mixdown_present == 1)
+{
+    pce->stereo_mixdown_element_number = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,22,"program_config_element(): stereo_mixdown_element_number"));
+}
+
+pce->matrix_mixdown_idx_present = faad_get1bit(ld
+    DEBUGVAR(1,23,"program_config_element(): matrix_mixdown_idx_present"));
+if (pce->matrix_mixdown_idx_present == 1)
+{
+    pce->matrix_mixdown_idx = (uint8_t)faad_getbits(ld, 2
+        DEBUGVAR(1,24,"program_config_element(): matrix_mixdown_idx"));
+    pce->pseudo_surround_enable = faad_get1bit(ld
+        DEBUGVAR(1,25,"program_config_element(): pseudo_surround_enable"));
+}
+
+for (i = 0; i < pce->num_front_channel_elements; i++)
+{
+    pce->front_element_is_cpe[i] = faad_get1bit(ld
+        DEBUGVAR(1,26,"program_config_element(): front_element_is_cpe"));
+    pce->front_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,27,"program_config_element(): front_element_tag_select"));
+
+    if (pce->front_element_is_cpe[i] & 1)
     {
-        pce->mono_mixdown_element_number = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,20,"program_config_element(): mono_mixdown_element_number"));
-    }
-
-    pce->stereo_mixdown_present = faad_get1bit(ld
-        DEBUGVAR(1,21,"program_config_element(): stereo_mixdown_present"));
-    if (pce->stereo_mixdown_present == 1)
-    {
-        pce->stereo_mixdown_element_number = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,22,"program_config_element(): stereo_mixdown_element_number"));
-    }
-
-    pce->matrix_mixdown_idx_present = faad_get1bit(ld
-        DEBUGVAR(1,23,"program_config_element(): matrix_mixdown_idx_present"));
-    if (pce->matrix_mixdown_idx_present == 1)
-    {
-        pce->matrix_mixdown_idx = (uint8_t)faad_getbits(ld, 2
-            DEBUGVAR(1,24,"program_config_element(): matrix_mixdown_idx"));
-        pce->pseudo_surround_enable = faad_get1bit(ld
-            DEBUGVAR(1,25,"program_config_element(): pseudo_surround_enable"));
-    }
-
-    for (i = 0; i < pce->num_front_channel_elements; i++)
-    {
-        pce->front_element_is_cpe[i] = faad_get1bit(ld
-            DEBUGVAR(1,26,"program_config_element(): front_element_is_cpe"));
-        pce->front_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,27,"program_config_element(): front_element_tag_select"));
-
-        if (pce->front_element_is_cpe[i] & 1)
-        {
-            pce->cpe_channel[pce->front_element_tag_select[i]] = pce->channels;
-            pce->num_front_channels += 2;
-            pce->channels += 2;
-        } else {
-            pce->sce_channel[pce->front_element_tag_select[i]] = pce->channels;
-            pce->num_front_channels++;
-            pce->channels++;
-        }
-    }
-
-    for (i = 0; i < pce->num_side_channel_elements; i++)
-    {
-        pce->side_element_is_cpe[i] = faad_get1bit(ld
-            DEBUGVAR(1,28,"program_config_element(): side_element_is_cpe"));
-        pce->side_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,29,"program_config_element(): side_element_tag_select"));
-
-        if (pce->side_element_is_cpe[i] & 1)
-        {
-            pce->cpe_channel[pce->side_element_tag_select[i]] = pce->channels;
-            pce->num_side_channels += 2;
-            pce->channels += 2;
-        } else {
-            pce->sce_channel[pce->side_element_tag_select[i]] = pce->channels;
-            pce->num_side_channels++;
-            pce->channels++;
-        }
-    }
-
-    for (i = 0; i < pce->num_back_channel_elements; i++)
-    {
-        pce->back_element_is_cpe[i] = faad_get1bit(ld
-            DEBUGVAR(1,30,"program_config_element(): back_element_is_cpe"));
-        pce->back_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,31,"program_config_element(): back_element_tag_select"));
-
-        if (pce->back_element_is_cpe[i] & 1)
-        {
-            pce->cpe_channel[pce->back_element_tag_select[i]] = pce->channels;
-            pce->channels += 2;
-            pce->num_back_channels += 2;
-        } else {
-            pce->sce_channel[pce->back_element_tag_select[i]] = pce->channels;
-            pce->num_back_channels++;
-            pce->channels++;
-        }
-    }
-
-    for (i = 0; i < pce->num_lfe_channel_elements; i++)
-    {
-        pce->lfe_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,32,"program_config_element(): lfe_element_tag_select"));
-
-        pce->sce_channel[pce->lfe_element_tag_select[i]] = pce->channels;
-        pce->num_lfe_channels++;
+        pce->cpe_channel[pce->front_element_tag_select[i]] = pce->channels;
+        pce->num_front_channels += 2;
+        pce->channels += 2;
+    } else {
+        pce->sce_channel[pce->front_element_tag_select[i]] = pce->channels;
+        pce->num_front_channels++;
         pce->channels++;
     }
+}
 
-    for (i = 0; i < pce->num_assoc_data_elements; i++)
-        pce->assoc_data_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-        DEBUGVAR(1,33,"program_config_element(): assoc_data_element_tag_select"));
+for (i = 0; i < pce->num_side_channel_elements; i++)
+{
+    pce->side_element_is_cpe[i] = faad_get1bit(ld
+        DEBUGVAR(1,28,"program_config_element(): side_element_is_cpe"));
+    pce->side_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,29,"program_config_element(): side_element_tag_select"));
 
-    for (i = 0; i < pce->num_valid_cc_elements; i++)
+    if (pce->side_element_is_cpe[i] & 1)
     {
-        pce->cc_element_is_ind_sw[i] = faad_get1bit(ld
-            DEBUGVAR(1,34,"program_config_element(): cc_element_is_ind_sw"));
-        pce->valid_cc_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,35,"program_config_element(): valid_cc_element_tag_select"));
+        pce->cpe_channel[pce->side_element_tag_select[i]] = pce->channels;
+        pce->num_side_channels += 2;
+        pce->channels += 2;
+    } else {
+        pce->sce_channel[pce->side_element_tag_select[i]] = pce->channels;
+        pce->num_side_channels++;
+        pce->channels++;
     }
+}
 
-    faad_byte_align(ld);
+for (i = 0; i < pce->num_back_channel_elements; i++)
+{
+    pce->back_element_is_cpe[i] = faad_get1bit(ld
+        DEBUGVAR(1,30,"program_config_element(): back_element_is_cpe"));
+    pce->back_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,31,"program_config_element(): back_element_tag_select"));
 
-    pce->comment_field_bytes = (uint8_t)faad_getbits(ld, 8
-        DEBUGVAR(1,36,"program_config_element(): comment_field_bytes"));
-
-    for (i = 0; i < pce->comment_field_bytes; i++)
+    if (pce->back_element_is_cpe[i] & 1)
     {
-        pce->comment_field_data[i] = (uint8_t)faad_getbits(ld, 8
-            DEBUGVAR(1,37,"program_config_element(): comment_field_data"));
+        pce->cpe_channel[pce->back_element_tag_select[i]] = pce->channels;
+        pce->channels += 2;
+        pce->num_back_channels += 2;
+    } else {
+        pce->sce_channel[pce->back_element_tag_select[i]] = pce->channels;
+        pce->num_back_channels++;
+        pce->channels++;
     }
-    pce->comment_field_data[i] = 0;
+}
 
-    if (pce->channels > MAX_CHANNELS)
-        return 22;
+for (i = 0; i < pce->num_lfe_channel_elements; i++)
+{
+    pce->lfe_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,32,"program_config_element(): lfe_element_tag_select"));
 
-    return 0;
+    pce->sce_channel[pce->lfe_element_tag_select[i]] = pce->channels;
+    pce->num_lfe_channels++;
+    pce->channels++;
+}
+
+for (i = 0; i < pce->num_assoc_data_elements; i++)
+    pce->assoc_data_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+    DEBUGVAR(1,33,"program_config_element(): assoc_data_element_tag_select"));
+
+for (i = 0; i < pce->num_valid_cc_elements; i++)
+{
+    pce->cc_element_is_ind_sw[i] = faad_get1bit(ld
+        DEBUGVAR(1,34,"program_config_element(): cc_element_is_ind_sw"));
+    pce->valid_cc_element_tag_select[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,35,"program_config_element(): valid_cc_element_tag_select"));
+}
+
+faad_byte_align(ld);
+
+pce->comment_field_bytes = (uint8_t)faad_getbits(ld, 8
+    DEBUGVAR(1,36,"program_config_element(): comment_field_bytes"));
+
+for (i = 0; i < pce->comment_field_bytes; i++)
+{
+    pce->comment_field_data[i] = (uint8_t)faad_getbits(ld, 8
+        DEBUGVAR(1,37,"program_config_element(): comment_field_data"));
+}
+pce->comment_field_data[i] = 0;
+
+if (pce->channels > MAX_CHANNELS)
+    return 22;
+
+return 0;
 }
 
 static void decode_sce_lfe(NeAACDecStruct *hDecoder,
-                           NeAACDecFrameInfo *hInfo, bitfile *ld,
-                           uint8_t id_syn_ele)
+                       NeAACDecFrameInfo *hInfo, bitfile *ld,
+                       uint8_t id_syn_ele)
 {
-    uint8_t channels = hDecoder->fr_channels;
-    uint8_t tag = 0;
+uint8_t channels = hDecoder->fr_channels;
+uint8_t tag = 0;
 
-    if (channels+1 > MAX_CHANNELS)
-    {
-        hInfo->error = 12;
-        return;
-    }
-    if (hDecoder->fr_ch_ele+1 > MAX_SYNTAX_ELEMENTS)
-    {
-        hInfo->error = 13;
-        return;
-    }
+if (channels+1 > MAX_CHANNELS)
+{
+    hInfo->error = 12;
+    return;
+}
+if (hDecoder->fr_ch_ele+1 > MAX_SYNTAX_ELEMENTS)
+{
+    hInfo->error = 13;
+    return;
+}
 
-    /* for SCE hDecoder->element_output_channels[] is not set here because this
-       can become 2 when some form of Parametric Stereo coding is used
-    */
+/* for SCE hDecoder->element_output_channels[] is not set here because this
+   can become 2 when some form of Parametric Stereo coding is used
+*/
 
-    /* save the syntax element id */
-    hDecoder->element_id[hDecoder->fr_ch_ele] = id_syn_ele;
+/* save the syntax element id */
+hDecoder->element_id[hDecoder->fr_ch_ele] = id_syn_ele;
 
-    /* decode the element */
-    hInfo->error = single_lfe_channel_element(hDecoder, ld, channels, &tag);
+/* decode the element */
+hInfo->error = single_lfe_channel_element(hDecoder, ld, channels, &tag);
 
-    /* map output channels position to internal data channels */
-    if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] == 2)
-    {
-        /* this might be faulty when pce_set is true */
+/* map output channels position to internal data channels */
+if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] == 2)
+{
+    /* this might be faulty when pce_set is true */
+    hDecoder->internal_channel[channels] = channels;
+    hDecoder->internal_channel[channels+1] = channels+1;
+} else {
+    if (hDecoder->pce_set)
+        hDecoder->internal_channel[hDecoder->pce.sce_channel[tag]] = channels;
+    else
         hDecoder->internal_channel[channels] = channels;
-        hDecoder->internal_channel[channels+1] = channels+1;
-    } else {
-        if (hDecoder->pce_set)
-            hDecoder->internal_channel[hDecoder->pce.sce_channel[tag]] = channels;
-        else
-            hDecoder->internal_channel[channels] = channels;
-    }
+}
 
-    hDecoder->fr_channels += hDecoder->element_output_channels[hDecoder->fr_ch_ele];
-    hDecoder->fr_ch_ele++;
+hDecoder->fr_channels += hDecoder->element_output_channels[hDecoder->fr_ch_ele];
+hDecoder->fr_ch_ele++;
 }
 
 static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfile *ld,
-                       uint8_t id_syn_ele)
+                   uint8_t id_syn_ele)
 {
-    uint8_t channels = hDecoder->fr_channels;
-    uint8_t tag = 0;
+uint8_t channels = hDecoder->fr_channels;
+uint8_t tag = 0;
 
-    if (channels+2 > MAX_CHANNELS)
-    {
-        hInfo->error = 12;
-        return;
-    }
-    if (hDecoder->fr_ch_ele+1 > MAX_SYNTAX_ELEMENTS)
-    {
-        hInfo->error = 13;
-        return;
-    }
+if (channels+2 > MAX_CHANNELS)
+{
+    hInfo->error = 12;
+    return;
+}
+if (hDecoder->fr_ch_ele+1 > MAX_SYNTAX_ELEMENTS)
+{
+    hInfo->error = 13;
+    return;
+}
 
-    /* for CPE the number of output channels is always 2 */
-    if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] == 0)
-    {
-        /* element_output_channels not set yet */
-        hDecoder->element_output_channels[hDecoder->fr_ch_ele] = 2;
-    } else if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] != 2) {
-        /* element inconsistency */
-        hInfo->error = 21;
-        return;
-    }
+/* for CPE the number of output channels is always 2 */
+if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] == 0)
+{
+    /* element_output_channels not set yet */
+    hDecoder->element_output_channels[hDecoder->fr_ch_ele] = 2;
+} else if (hDecoder->element_output_channels[hDecoder->fr_ch_ele] != 2) {
+    /* element inconsistency */
+    hInfo->error = 21;
+    return;
+}
 
-    /* save the syntax element id */
-    hDecoder->element_id[hDecoder->fr_ch_ele] = id_syn_ele;
+/* save the syntax element id */
+hDecoder->element_id[hDecoder->fr_ch_ele] = id_syn_ele;
 
-    /* decode the element */
-    hInfo->error = channel_pair_element(hDecoder, ld, channels, &tag);
+/* decode the element */
+hInfo->error = channel_pair_element(hDecoder, ld, channels, &tag);
 
-    /* map output channel position to internal data channels */
-    if (hDecoder->pce_set)
-    {
-        hDecoder->internal_channel[hDecoder->pce.cpe_channel[tag]] = channels;
-        hDecoder->internal_channel[hDecoder->pce.cpe_channel[tag]+1] = channels+1;
-    } else {
-        hDecoder->internal_channel[channels] = channels;
-        hDecoder->internal_channel[channels+1] = channels+1;
-    }
+/* map output channel position to internal data channels */
+if (hDecoder->pce_set)
+{
+    hDecoder->internal_channel[hDecoder->pce.cpe_channel[tag]] = channels;
+    hDecoder->internal_channel[hDecoder->pce.cpe_channel[tag]+1] = channels+1;
+} else {
+    hDecoder->internal_channel[channels] = channels;
+    hDecoder->internal_channel[channels+1] = channels+1;
+}
 
-    hDecoder->fr_channels += 2;
-    hDecoder->fr_ch_ele++;
+hDecoder->fr_channels += 2;
+hDecoder->fr_ch_ele++;
 }
 
 void aacgain_raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
-                    bitfile *ld, program_config *pce, drc_info *drc)
+                bitfile *ld, program_config *pce, drc_info *drc)
 {
-    uint8_t id_syn_ele;
-    uint8_t ele_this_frame = 0;
+uint8_t id_syn_ele;
+uint8_t ele_this_frame = 0;
 
-    hDecoder->fr_channels = 0;
-    hDecoder->fr_ch_ele = 0;
-    hDecoder->first_syn_ele = 25;
-    hDecoder->has_lfe = 0;
+hDecoder->fr_channels = 0;
+hDecoder->fr_ch_ele = 0;
+hDecoder->first_syn_ele = 25;
+hDecoder->has_lfe = 0;
 
 #ifdef ERROR_RESILIENCE
-    if (hDecoder->object_type < ER_OBJECT_START)
+if (hDecoder->object_type < ER_OBJECT_START)
+{
+#endif
+    /* Table 4.4.3: raw_data_block() */
+    while ((id_syn_ele = (uint8_t)faad_getbits(ld, LEN_SE_ID
+        DEBUGVAR(1,4,"NeAACDecDecode(): id_syn_ele"))) != ID_END)
     {
-#endif
-        /* Table 4.4.3: raw_data_block() */
-        while ((id_syn_ele = (uint8_t)faad_getbits(ld, LEN_SE_ID
-            DEBUGVAR(1,4,"NeAACDecDecode(): id_syn_ele"))) != ID_END)
-        {
-            switch (id_syn_ele) {
-            case ID_SCE:
-                ele_this_frame++;
-                if (hDecoder->first_syn_ele == 25) hDecoder->first_syn_ele = id_syn_ele;
-                decode_sce_lfe(hDecoder, hInfo, ld, id_syn_ele);
-                if (hInfo->error > 0)
-                    return;
-                break;
-            case ID_CPE:
-                ele_this_frame++;
-                if (hDecoder->first_syn_ele == 25) hDecoder->first_syn_ele = id_syn_ele;
-                decode_cpe(hDecoder, hInfo, ld, id_syn_ele);
-                if (hInfo->error > 0)
-                    return;
-                break;
-            case ID_LFE:
+        switch (id_syn_ele) {
+        case ID_SCE:
+            ele_this_frame++;
+            if (hDecoder->first_syn_ele == 25) hDecoder->first_syn_ele = id_syn_ele;
+            decode_sce_lfe(hDecoder, hInfo, ld, id_syn_ele);
+            if (hInfo->error > 0)
+                return;
+            break;
+        case ID_CPE:
+            ele_this_frame++;
+            if (hDecoder->first_syn_ele == 25) hDecoder->first_syn_ele = id_syn_ele;
+            decode_cpe(hDecoder, hInfo, ld, id_syn_ele);
+            if (hInfo->error > 0)
+                return;
+            break;
+        case ID_LFE:
 #ifdef DRM
-                hInfo->error = 32;
+            hInfo->error = 32;
 #else
-                ele_this_frame++;
-                hDecoder->has_lfe++;
-                decode_sce_lfe(hDecoder, hInfo, ld, id_syn_ele);
+            ele_this_frame++;
+            hDecoder->has_lfe++;
+            decode_sce_lfe(hDecoder, hInfo, ld, id_syn_ele);
 #endif
-                if (hInfo->error > 0)
-                    return;
-                break;
-            case ID_CCE: /* not implemented yet, but skip the bits */
+            if (hInfo->error > 0)
+                return;
+            break;
+        case ID_CCE: /* not implemented yet, but skip the bits */
 #ifdef DRM
-                hInfo->error = 32;
+            hInfo->error = 32;
 #else
-                ele_this_frame++;
+            ele_this_frame++;
 #ifdef COUPLING_DEC
-                hInfo->error = coupling_channel_element(hDecoder, ld);
+            hInfo->error = coupling_channel_element(hDecoder, ld);
 #else
-                hInfo->error = 6;
+            hInfo->error = 6;
 #endif
 #endif
-                if (hInfo->error > 0)
-                    return;
-                break;
-            case ID_DSE:
-                ele_this_frame++;
-                data_stream_element(hDecoder, ld);
-                break;
-            case ID_PCE:
-                if (ele_this_frame != 0)
-                {
-                    hInfo->error = 31;
-                    return;
-                }
-                ele_this_frame++;
-                /* 14496-4: 5.6.4.1.2.1.3: */
-                /* program_configuration_element()'s in access units shall be ignored */
-                program_config_element(pce, ld);
-                //if ((hInfo->error = program_config_element(pce, ld)) > 0)
-                //    return;
-                //hDecoder->pce_set = 1;
-                break;
-            case ID_FIL:
-                ele_this_frame++;
-                /* one sbr_info describes a channel_element not a channel! */
-                /* if we encounter SBR data here: error */
-                /* SBR data will be read directly in the SCE/LFE/CPE element */
-                if ((hInfo->error = fill_element(hDecoder, ld, drc
-#ifdef SBR_DEC
-                    , INVALID_SBR_ELEMENT
-#endif
-                    )) > 0)
-                    return;
-                break;
+            if (hInfo->error > 0)
+                return;
+            break;
+        case ID_DSE:
+            ele_this_frame++;
+            data_stream_element(hDecoder, ld);
+            break;
+        case ID_PCE:
+            if (ele_this_frame != 0)
+            {
+                hInfo->error = 31;
+                return;
             }
+            ele_this_frame++;
+            /* 14496-4: 5.6.4.1.2.1.3: */
+            /* program_configuration_element()'s in access units shall be ignored */
+            program_config_element(pce, ld);
+            //if ((hInfo->error = program_config_element(pce, ld)) > 0)
+            //    return;
+            //hDecoder->pce_set = 1;
+            break;
+        case ID_FIL:
+            ele_this_frame++;
+            /* one sbr_info describes a channel_element not a channel! */
+            /* if we encounter SBR data here: error */
+            /* SBR data will be read directly in the SCE/LFE/CPE element */
+            if ((hInfo->error = fill_element(hDecoder, ld, drc
+#ifdef SBR_DEC
+                , INVALID_SBR_ELEMENT
+#endif
+                )) > 0)
+                return;
+            break;
         }
+    }
 #ifdef ERROR_RESILIENCE
-    } else {
-        /* Table 262: er_raw_data_block() */
-        switch (hDecoder->channelConfiguration)
-        {
-        case 1:
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 2:
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 3:
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 4:
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 5:
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 6:
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_LFE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        case 7: /* 8 channels */
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_cpe(hDecoder, hInfo, ld, ID_CPE);
-            decode_sce_lfe(hDecoder, hInfo, ld, ID_LFE);
-            if (hInfo->error > 0)
-                return;
-            break;
-        default:
-            hInfo->error = 7;
-            return;
-        }
-#if 0
-        cnt = bits_to_decode() / 8;
-        while (cnt >= 1)
-        {
-            cnt -= extension_payload(cnt);
-        }
-#endif
-    }
-#endif
-
-    /* new in corrigendum 14496-3:2002 */
-#ifdef DRM
-    if (hDecoder->object_type != DRM_ER_LC
-#if 0
-        && !hDecoder->latm_header_present
-#endif
-        )
-#endif
+} else {
+    /* Table 262: er_raw_data_block() */
+    switch (hDecoder->channelConfiguration)
     {
-        faad_byte_align(ld);
+    case 1:
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 2:
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 3:
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 4:
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 5:
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 6:
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_LFE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    case 7: /* 8 channels */
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_cpe(hDecoder, hInfo, ld, ID_CPE);
+        decode_sce_lfe(hDecoder, hInfo, ld, ID_LFE);
+        if (hInfo->error > 0)
+            return;
+        break;
+    default:
+        hInfo->error = 7;
+        return;
     }
+#if 0
+    cnt = bits_to_decode() / 8;
+while (cnt >= 1)
+{
+cnt -= extension_payload(cnt);
+}
+#endif
+}
+#endif
 
-    return;
+/* new in corrigendum 14496-3:2002 */
+#ifdef DRM
+if (hDecoder->object_type != DRM_ER_LC
+#if 0
+&& !hDecoder->latm_header_present
+#endif
+)
+#endif
+{
+    faad_byte_align(ld);
+}
+
+return;
 }
 
 /* Table 4.4.4 and */
 /* Table 4.4.9 */
 static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
-                                          uint8_t channel, uint8_t *tag)
+                                      uint8_t channel, uint8_t *tag)
 {
-    uint8_t retval = 0;
-    element sce = {0};
-    ic_stream *ics = &(sce.ics1);
-    ALIGN int16_t spec_data[1024] = {0};
+uint8_t retval = 0;
+element sce = {0};
+ic_stream *ics = &(sce.ics1);
+ALIGN int16_t spec_data[1024] = {0};
 
-    sce.element_instance_tag = (uint8_t)faad_getbits(ld, LEN_TAG
-        DEBUGVAR(1,38,"single_lfe_channel_element(): element_instance_tag"));
+sce.element_instance_tag = (uint8_t)faad_getbits(ld, LEN_TAG
+    DEBUGVAR(1,38,"single_lfe_channel_element(): element_instance_tag"));
 
-    *tag = sce.element_instance_tag;
-    sce.channel = channel;
-    sce.paired_channel = -1;
+*tag = sce.element_instance_tag;
+sce.channel = channel;
+sce.paired_channel = -1;
 
-    retval = individual_channel_stream(hDecoder, &sce, ld, ics, 0, spec_data);
-    if (retval > 0)
-        return retval;
+retval = individual_channel_stream(hDecoder, &sce, ld, ics, 0, spec_data);
+if (retval > 0)
+    return retval;
 
-    /* IS not allowed in single channel */
-    if (ics->is_used)
-        return 32;
+/* IS not allowed in single channel */
+if (ics->is_used)
+    return 32;
 
 #ifdef SBR_DEC
-    /* check if next bitstream element is a fill element */
-    /* if so, read it now so SBR decoding can be done in case of a file with SBR */
-    if (faad_showbits(ld, LEN_SE_ID) == ID_FIL)
-    {
-        faad_flushbits(ld, LEN_SE_ID);
+/* check if next bitstream element is a fill element */
+/* if so, read it now so SBR decoding can be done in case of a file with SBR */
+if (faad_showbits(ld, LEN_SE_ID) == ID_FIL)
+{
+    faad_flushbits(ld, LEN_SE_ID);
 
-        /* one sbr_info describes a channel_element not a channel! */
-        if ((retval = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
-        {
-            return retval;
-        }
+    /* one sbr_info describes a channel_element not a channel! */
+    if ((retval = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
+    {
+        return retval;
     }
+}
 #endif
 
-    /* noiseless coding is done, spectral reconstruction is done now */
-    retval = reconstruct_single_channel(hDecoder, ics, &sce, spec_data);
-    if (retval > 0)
-        return retval;
+/* noiseless coding is done, spectral reconstruction is done now */
+retval = reconstruct_single_channel(hDecoder, ics, &sce, spec_data);
+if (retval > 0)
+    return retval;
 
-    return 0;
+return 0;
 }
 
 /* Table 4.4.5 */
 static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
-                                    uint8_t channels, uint8_t *tag)
+                                uint8_t channels, uint8_t *tag)
 {
-    ALIGN int16_t spec_data1[1024] = {0};
-    ALIGN int16_t spec_data2[1024] = {0};
-    element cpe = {0};
-    ic_stream *ics1 = &(cpe.ics1);
-    ic_stream *ics2 = &(cpe.ics2);
-    uint8_t result;
+ALIGN int16_t spec_data1[1024] = {0};
+ALIGN int16_t spec_data2[1024] = {0};
+element cpe = {0};
+ic_stream *ics1 = &(cpe.ics1);
+ic_stream *ics2 = &(cpe.ics2);
+uint8_t result;
 
-    cpe.channel        = channels;
-    cpe.paired_channel = channels+1;
+cpe.channel        = channels;
+cpe.paired_channel = channels+1;
 
-    cpe.element_instance_tag = (uint8_t)faad_getbits(ld, LEN_TAG
-        DEBUGVAR(1,39,"channel_pair_element(): element_instance_tag"));
-    *tag = cpe.element_instance_tag;
+cpe.element_instance_tag = (uint8_t)faad_getbits(ld, LEN_TAG
+    DEBUGVAR(1,39,"channel_pair_element(): element_instance_tag"));
+*tag = cpe.element_instance_tag;
 
-    if ((cpe.common_window = faad_get1bit(ld
-        DEBUGVAR(1,40,"channel_pair_element(): common_window"))) & 1)
-    {
-        /* both channels have common ics information */
-        if ((result = ics_info(hDecoder, ics1, ld, cpe.common_window)) > 0)
-            return result;
-
-        ics1->ms_mask_present = (uint8_t)faad_getbits(ld, 2
-            DEBUGVAR(1,41,"channel_pair_element(): ms_mask_present"));
-        if (ics1->ms_mask_present == 3)
-        {
-            /* bitstream error */
-            return 32;
-        }
-        if (ics1->ms_mask_present == 1)
-        {
-            uint8_t g, sfb;
-            for (g = 0; g < ics1->num_window_groups; g++)
-            {
-                for (sfb = 0; sfb < ics1->max_sfb; sfb++)
-                {
-                    ics1->ms_used[g][sfb] = faad_get1bit(ld
-                        DEBUGVAR(1,42,"channel_pair_element(): faad_get1bit"));
-                }
-            }
-        }
-
-#ifdef ERROR_RESILIENCE
-        if ((hDecoder->object_type >= ER_OBJECT_START) && (ics1->predictor_data_present))
-        {
-            if ((
-#ifdef LTP_DEC
-                ics1->ltp.data_present =
-#endif
-                faad_get1bit(ld DEBUGVAR(1,50,"channel_pair_element(): ltp.data_present"))) & 1)
-            {
-#ifdef LTP_DEC
-                if ((result = ltp_data(hDecoder, ics1, &(ics1->ltp), ld)) > 0)
-                {
-                    return result;
-                }
-#else
-                return 26;
-#endif
-            }
-        }
-#endif
-
-        memcpy(ics2, ics1, sizeof(ic_stream));
-    } else {
-        ics1->ms_mask_present = 0;
-    }
-
-    if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics1,
-        0, spec_data1)) > 0)
-    {
+if ((cpe.common_window = faad_get1bit(ld
+    DEBUGVAR(1,40,"channel_pair_element(): common_window"))) & 1)
+{
+    /* both channels have common ics information */
+    if ((result = ics_info(hDecoder, ics1, ld, cpe.common_window)) > 0)
         return result;
+
+    ics1->ms_mask_present = (uint8_t)faad_getbits(ld, 2
+        DEBUGVAR(1,41,"channel_pair_element(): ms_mask_present"));
+    if (ics1->ms_mask_present == 3)
+    {
+        /* bitstream error */
+        return 32;
+    }
+    if (ics1->ms_mask_present == 1)
+    {
+        uint8_t g, sfb;
+        for (g = 0; g < ics1->num_window_groups; g++)
+        {
+            for (sfb = 0; sfb < ics1->max_sfb; sfb++)
+            {
+                ics1->ms_used[g][sfb] = faad_get1bit(ld
+                    DEBUGVAR(1,42,"channel_pair_element(): faad_get1bit"));
+            }
+        }
     }
 
 #ifdef ERROR_RESILIENCE
-    if (cpe.common_window && (hDecoder->object_type >= ER_OBJECT_START) &&
-        (ics1->predictor_data_present))
+    if ((hDecoder->object_type >= ER_OBJECT_START) && (ics1->predictor_data_present))
     {
         if ((
 #ifdef LTP_DEC
-            ics1->ltp2.data_present =
+            ics1->ltp.data_present =
 #endif
             faad_get1bit(ld DEBUGVAR(1,50,"channel_pair_element(): ltp.data_present"))) & 1)
         {
 #ifdef LTP_DEC
-            if ((result = ltp_data(hDecoder, ics1, &(ics1->ltp2), ld)) > 0)
+            if ((result = ltp_data(hDecoder, ics1, &(ics1->ltp), ld)) > 0)
             {
                 return result;
             }
@@ -745,236 +712,269 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
     }
 #endif
 
-    if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics2,
-        0, spec_data2)) > 0)
+    memcpy(ics2, ics1, sizeof(ic_stream));
+} else {
+    ics1->ms_mask_present = 0;
+}
+
+if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics1,
+    0, spec_data1)) > 0)
+{
+    return result;
+}
+
+#ifdef ERROR_RESILIENCE
+if (cpe.common_window && (hDecoder->object_type >= ER_OBJECT_START) &&
+    (ics1->predictor_data_present))
+{
+    if ((
+#ifdef LTP_DEC
+        ics1->ltp2.data_present =
+#endif
+        faad_get1bit(ld DEBUGVAR(1,50,"channel_pair_element(): ltp.data_present"))) & 1)
     {
-        return result;
-    }
-
-    if (!theGainData->analyze)
-        return 0;
-
-#ifdef SBR_DEC
-    /* check if next bitstream element is a fill element */
-    /* if so, read it now so SBR decoding can be done in case of a file with SBR */
-    if (faad_showbits(ld, LEN_SE_ID) == ID_FIL)
-    {
-        faad_flushbits(ld, LEN_SE_ID);
-
-        /* one sbr_info describes a channel_element not a channel! */
-        if ((result = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
+#ifdef LTP_DEC
+        if ((result = ltp_data(hDecoder, ics1, &(ics1->ltp2), ld)) > 0)
         {
             return result;
         }
+#else
+        return 26;
+#endif
     }
+}
 #endif
 
-    /* noiseless coding is done, spectral reconstruction is done now */
-    if ((result = reconstruct_channel_pair(hDecoder, ics1, ics2, &cpe,
-        spec_data1, spec_data2)) > 0)
+if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics2,
+    0, spec_data2)) > 0)
+{
+    return result;
+}
+
+if (!theGainData->analyze)
+    return 0;
+
+#ifdef SBR_DEC
+/* check if next bitstream element is a fill element */
+/* if so, read it now so SBR decoding can be done in case of a file with SBR */
+if (faad_showbits(ld, LEN_SE_ID) == ID_FIL)
+{
+    faad_flushbits(ld, LEN_SE_ID);
+
+    /* one sbr_info describes a channel_element not a channel! */
+    if ((result = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
     {
         return result;
     }
+}
+#endif
 
-    return 0;
+/* noiseless coding is done, spectral reconstruction is done now */
+if ((result = reconstruct_channel_pair(hDecoder, ics1, ics2, &cpe,
+    spec_data1, spec_data2)) > 0)
+{
+    return result;
+}
+
+return 0;
 }
 
 /* Table 4.4.6 */
 static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
-                        uint8_t common_window)
+                    uint8_t common_window)
 {
-    uint8_t retval = 0;
-    uint8_t ics_reserved_bit;
+uint8_t retval = 0;
+uint8_t ics_reserved_bit;
 
-    ics_reserved_bit = faad_get1bit(ld
-        DEBUGVAR(1,43,"ics_info(): ics_reserved_bit"));
-    if (ics_reserved_bit != 0)
-        return 32;
-    ics->window_sequence = (uint8_t)faad_getbits(ld, 2
-        DEBUGVAR(1,44,"ics_info(): window_sequence"));
-    ics->window_shape = faad_get1bit(ld
-        DEBUGVAR(1,45,"ics_info(): window_shape"));
+ics_reserved_bit = faad_get1bit(ld
+    DEBUGVAR(1,43,"ics_info(): ics_reserved_bit"));
+if (ics_reserved_bit != 0)
+    return 32;
+ics->window_sequence = (uint8_t)faad_getbits(ld, 2
+    DEBUGVAR(1,44,"ics_info(): window_sequence"));
+ics->window_shape = faad_get1bit(ld
+    DEBUGVAR(1,45,"ics_info(): window_shape"));
 
 #ifdef LD_DEC
-    /* No block switching in LD */
-    if ((hDecoder->object_type == LD) && (ics->window_sequence != ONLY_LONG_SEQUENCE))
-        return 32;
+/* No block switching in LD */
+if ((hDecoder->object_type == LD) && (ics->window_sequence != ONLY_LONG_SEQUENCE))
+    return 32;
 #endif
 
-    if (ics->window_sequence == EIGHT_SHORT_SEQUENCE)
+if (ics->window_sequence == EIGHT_SHORT_SEQUENCE)
+{
+    ics->max_sfb = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,46,"ics_info(): max_sfb (short)"));
+    ics->scale_factor_grouping = (uint8_t)faad_getbits(ld, 7
+        DEBUGVAR(1,47,"ics_info(): scale_factor_grouping"));
+} else {
+    ics->max_sfb = (uint8_t)faad_getbits(ld, 6
+        DEBUGVAR(1,48,"ics_info(): max_sfb (long)"));
+}
+
+/* get the grouping information */
+if ((retval = window_grouping_info(hDecoder, ics)) > 0)
+    return retval;
+
+
+/* should be an error */
+/* check the range of max_sfb */
+if (ics->max_sfb > ics->num_swb)
+    return 16;
+
+if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
+{
+    if ((ics->predictor_data_present = faad_get1bit(ld
+        DEBUGVAR(1,49,"ics_info(): predictor_data_present"))) & 1)
     {
-        ics->max_sfb = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,46,"ics_info(): max_sfb (short)"));
-        ics->scale_factor_grouping = (uint8_t)faad_getbits(ld, 7
-            DEBUGVAR(1,47,"ics_info(): scale_factor_grouping"));
-    } else {
-        ics->max_sfb = (uint8_t)faad_getbits(ld, 6
-            DEBUGVAR(1,48,"ics_info(): max_sfb (long)"));
-    }
-
-    /* get the grouping information */
-    if ((retval = window_grouping_info(hDecoder, ics)) > 0)
-        return retval;
-
-
-    /* should be an error */
-    /* check the range of max_sfb */
-    if (ics->max_sfb > ics->num_swb)
-        return 16;
-
-    if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
-    {
-        if ((ics->predictor_data_present = faad_get1bit(ld
-            DEBUGVAR(1,49,"ics_info(): predictor_data_present"))) & 1)
+        if (hDecoder->object_type == MAIN) /* MPEG2 style AAC predictor */
         {
-            if (hDecoder->object_type == MAIN) /* MPEG2 style AAC predictor */
+            uint8_t sfb;
+
+            uint8_t limit = min(ics->max_sfb, max_pred_sfb(hDecoder->sf_index));
+#ifdef MAIN_DEC
+            ics->pred.limit = limit;
+#endif
+
+            if ((
+#ifdef MAIN_DEC
+                ics->pred.predictor_reset =
+#endif
+                faad_get1bit(ld DEBUGVAR(1,53,"ics_info(): pred.predictor_reset"))) & 1)
             {
-                uint8_t sfb;
-
-                uint8_t limit = min(ics->max_sfb, max_pred_sfb(hDecoder->sf_index));
 #ifdef MAIN_DEC
-                ics->pred.limit = limit;
+                ics->pred.predictor_reset_group_number =
 #endif
-
-                if ((
-#ifdef MAIN_DEC
-                    ics->pred.predictor_reset =
-#endif
-                    faad_get1bit(ld DEBUGVAR(1,53,"ics_info(): pred.predictor_reset"))) & 1)
-                {
-#ifdef MAIN_DEC
-                    ics->pred.predictor_reset_group_number =
-#endif
-                        (uint8_t)faad_getbits(ld, 5 DEBUGVAR(1,54,"ics_info(): pred.predictor_reset_group_number"));
-                }
-
-                for (sfb = 0; sfb < limit; sfb++)
-                {
-#ifdef MAIN_DEC
-                    ics->pred.prediction_used[sfb] =
-#endif
-                        faad_get1bit(ld DEBUGVAR(1,55,"ics_info(): pred.prediction_used"));
-                }
+                    (uint8_t)faad_getbits(ld, 5 DEBUGVAR(1,54,"ics_info(): pred.predictor_reset_group_number"));
             }
+
+            for (sfb = 0; sfb < limit; sfb++)
+            {
+#ifdef MAIN_DEC
+                ics->pred.prediction_used[sfb] =
+#endif
+                    faad_get1bit(ld DEBUGVAR(1,55,"ics_info(): pred.prediction_used"));
+            }
+        }
 #ifdef LTP_DEC
-            else { /* Long Term Prediction */
-                if (hDecoder->object_type < ER_OBJECT_START)
+        else { /* Long Term Prediction */
+            if (hDecoder->object_type < ER_OBJECT_START)
+            {
+                if ((ics->ltp.data_present = faad_get1bit(ld
+                    DEBUGVAR(1,50,"ics_info(): ltp.data_present"))) & 1)
                 {
-                    if ((ics->ltp.data_present = faad_get1bit(ld
-                        DEBUGVAR(1,50,"ics_info(): ltp.data_present"))) & 1)
+                    if ((retval = ltp_data(hDecoder, ics, &(ics->ltp), ld)) > 0)
                     {
-                        if ((retval = ltp_data(hDecoder, ics, &(ics->ltp), ld)) > 0)
+                        return retval;
+                    }
+                }
+                if (common_window)
+                {
+                    if ((ics->ltp2.data_present = faad_get1bit(ld
+                        DEBUGVAR(1,51,"ics_info(): ltp2.data_present"))) & 1)
+                    {
+                        if ((retval = ltp_data(hDecoder, ics, &(ics->ltp2), ld)) > 0)
                         {
                             return retval;
                         }
                     }
-                    if (common_window)
-                    {
-                        if ((ics->ltp2.data_present = faad_get1bit(ld
-                            DEBUGVAR(1,51,"ics_info(): ltp2.data_present"))) & 1)
-                        {
-                            if ((retval = ltp_data(hDecoder, ics, &(ics->ltp2), ld)) > 0)
-                            {
-                                return retval;
-                            }
-                        }
-                    }
                 }
+            }
 #ifdef ERROR_RESILIENCE
-                if (!common_window && (hDecoder->object_type >= ER_OBJECT_START))
+            if (!common_window && (hDecoder->object_type >= ER_OBJECT_START))
+            {
+                if ((ics->ltp.data_present = faad_get1bit(ld
+                    DEBUGVAR(1,50,"ics_info(): ltp.data_present"))) & 1)
                 {
-                    if ((ics->ltp.data_present = faad_get1bit(ld
-                        DEBUGVAR(1,50,"ics_info(): ltp.data_present"))) & 1)
-                    {
-                        ltp_data(hDecoder, ics, &(ics->ltp), ld);
-                    }
+                    ltp_data(hDecoder, ics, &(ics->ltp), ld);
                 }
-#endif
             }
 #endif
         }
+#endif
     }
+}
 
-    return retval;
+return retval;
 }
 
 /* Table 4.4.7 */
 static uint8_t pulse_data(ic_stream *ics, pulse_info *pul, bitfile *ld)
 {
-    uint8_t i;
+uint8_t i;
 
-    pul->number_pulse = (uint8_t)faad_getbits(ld, 2
-        DEBUGVAR(1,56,"pulse_data(): number_pulse"));
-    pul->pulse_start_sfb = (uint8_t)faad_getbits(ld, 6
-        DEBUGVAR(1,57,"pulse_data(): pulse_start_sfb"));
+pul->number_pulse = (uint8_t)faad_getbits(ld, 2
+    DEBUGVAR(1,56,"pulse_data(): number_pulse"));
+pul->pulse_start_sfb = (uint8_t)faad_getbits(ld, 6
+    DEBUGVAR(1,57,"pulse_data(): pulse_start_sfb"));
 
-    /* check the range of pulse_start_sfb */
-    if (pul->pulse_start_sfb > ics->num_swb)
-        return 16;
+/* check the range of pulse_start_sfb */
+if (pul->pulse_start_sfb > ics->num_swb)
+    return 16;
 
-    for (i = 0; i < pul->number_pulse+1; i++)
-    {
-        pul->pulse_offset[i] = (uint8_t)faad_getbits(ld, 5
-            DEBUGVAR(1,58,"pulse_data(): pulse_offset"));
+for (i = 0; i < pul->number_pulse+1; i++)
+{
+    pul->pulse_offset[i] = (uint8_t)faad_getbits(ld, 5
+        DEBUGVAR(1,58,"pulse_data(): pulse_offset"));
 #if 0
-        printf("%d\n", pul->pulse_offset[i]);
+    printf("%d\n", pul->pulse_offset[i]);
 #endif
-        pul->pulse_amp[i] = (uint8_t)faad_getbits(ld, 4
-            DEBUGVAR(1,59,"pulse_data(): pulse_amp"));
+    pul->pulse_amp[i] = (uint8_t)faad_getbits(ld, 4
+        DEBUGVAR(1,59,"pulse_data(): pulse_amp"));
 #if 0
-        printf("%d\n", pul->pulse_amp[i]);
+    printf("%d\n", pul->pulse_amp[i]);
 #endif
-    }
+}
 
-    return 0;
+return 0;
 }
 
 #ifdef COUPLING_DEC
 /* Table 4.4.8: Currently just for skipping the bits... */
 static uint8_t coupling_channel_element(NeAACDecStruct *hDecoder, bitfile *ld)
 {
-    uint8_t c, result = 0;
-    uint8_t ind_sw_cce_flag = 0;
-    uint8_t num_gain_element_lists = 0;
-    uint8_t num_coupled_elements = 0;
+uint8_t c, result = 0;
+uint8_t ind_sw_cce_flag = 0;
+uint8_t num_gain_element_lists = 0;
+uint8_t num_coupled_elements = 0;
 
-    element el_empty = {0};
-    ic_stream ics_empty = {0};
-    int16_t sh_data[1024];
+element el_empty = {0};
+ic_stream ics_empty = {0};
+int16_t sh_data[1024];
 
-    c = faad_getbits(ld, LEN_TAG
-        DEBUGVAR(1,900,"coupling_channel_element(): element_instance_tag"));
+c = faad_getbits(ld, LEN_TAG
+    DEBUGVAR(1,900,"coupling_channel_element(): element_instance_tag"));
 
-    ind_sw_cce_flag = faad_get1bit(ld
-        DEBUGVAR(1,901,"coupling_channel_element(): ind_sw_cce_flag"));
-    num_coupled_elements = faad_getbits(ld, 3
-        DEBUGVAR(1,902,"coupling_channel_element(): num_coupled_elements"));
+ind_sw_cce_flag = faad_get1bit(ld
+    DEBUGVAR(1,901,"coupling_channel_element(): ind_sw_cce_flag"));
+num_coupled_elements = faad_getbits(ld, 3
+    DEBUGVAR(1,902,"coupling_channel_element(): num_coupled_elements"));
 
-    for (c = 0; c < num_coupled_elements + 1; c++)
+for (c = 0; c < num_coupled_elements + 1; c++)
+{
+    uint8_t cc_target_is_cpe, cc_target_tag_select;
+
+    num_gain_element_lists++;
+
+    cc_target_is_cpe = faad_get1bit(ld
+        DEBUGVAR(1,903,"coupling_channel_element(): cc_target_is_cpe"));
+    cc_target_tag_select = faad_getbits(ld, 4
+        DEBUGVAR(1,904,"coupling_channel_element(): cc_target_tag_select"));
+
+    if (cc_target_is_cpe)
     {
-        uint8_t cc_target_is_cpe, cc_target_tag_select;
+        uint8_t cc_l = faad_get1bit(ld
+            DEBUGVAR(1,905,"coupling_channel_element(): cc_l"));
+        uint8_t cc_r = faad_get1bit(ld
+            DEBUGVAR(1,906,"coupling_channel_element(): cc_r"));
 
-        num_gain_element_lists++;
-
-        cc_target_is_cpe = faad_get1bit(ld
-            DEBUGVAR(1,903,"coupling_channel_element(): cc_target_is_cpe"));
-        cc_target_tag_select = faad_getbits(ld, 4
-            DEBUGVAR(1,904,"coupling_channel_element(): cc_target_tag_select"));
-
-        if (cc_target_is_cpe)
-        {
-            uint8_t cc_l = faad_get1bit(ld
-                DEBUGVAR(1,905,"coupling_channel_element(): cc_l"));
-            uint8_t cc_r = faad_get1bit(ld
-                DEBUGVAR(1,906,"coupling_channel_element(): cc_r"));
-
-            if (cc_l && cc_r)
-                num_gain_element_lists++;
-        }
+        if (cc_l && cc_r)
+            num_gain_element_lists++;
     }
+}
 
-    faad_get1bit(ld
-        DEBUGVAR(1,907,"coupling_channel_element(): cc_domain"));
+faad_get1bit(ld
+    DEBUGVAR(1,907,"coupling_channel_element(): cc_domain"));
     faad_get1bit(ld
         DEBUGVAR(1,908,"coupling_channel_element(): gain_element_sign"));
     faad_getbits(ld, 2
@@ -2221,11 +2221,11 @@ static uint16_t extension_payload(bitfile *ld, drc_info *drc, uint16_t count)
         return n;
     case EXT_FILL_DATA:
         /* fill_nibble = */ faad_getbits(ld, 4
-            DEBUGVAR(1,136,"extension_payload(): fill_nibble")); /* must be ‘0000’ */
+            DEBUGVAR(1,136,"extension_payload(): fill_nibble")); /* must be ï¿½0000ï¿½ */
         for (i = 0; i < count-1; i++)
         {
             /* fill_byte[i] = */ faad_getbits(ld, 8
-                DEBUGVAR(1,88,"extension_payload(): fill_byte")); /* must be ‘10100101’ */
+                DEBUGVAR(1,88,"extension_payload(): fill_byte")); /* must be ï¿½10100101ï¿½ */
         }
         return count;
     case EXT_DATA_ELEMENT:
